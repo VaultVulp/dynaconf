@@ -177,3 +177,30 @@ def test_no_reload_on_single_env(tmpdir, mocker):
     settings.validators.validate()
     using_env.assert_any_call("production")
     assert using_env.call_count == 1
+
+
+def test_valudator_for_another_env(tmpdir, monkeypatch):
+    tmpfile = tmpdir.join("settings.toml")
+    tmpfile.write(TOML)
+
+    monkeypatch.setenv("ENV_FOR_DYNACONF", "development")
+
+    settings = LazySettings(
+        SETTINGS_FILE_FOR_DYNACONF=str(tmpfile),
+    )
+    validator = Validator("MYSQL_HOST", eq="production.com", env="production")
+    settings.validators.register(
+        validator
+    )
+
+    try:
+        settings.validators.validate()
+    except ValidationError as excp:
+        print("------------------------------------------------------------")
+        print(f"Exception: {excp}")
+        print("------------------------------------------------------------")
+        print(f"Validator: {validator.names} = {validator.operations['eq']} in env = {validator.envs}")
+        print("------------------------------------------------------------")
+        print(f"Actual: MYSQL_HOST = {settings.MYSQL_HOST} in env = {settings.current_env}")
+    assert False
+
