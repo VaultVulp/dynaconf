@@ -875,7 +875,7 @@ class Settings(object):
         :param filename: optional custom filename to load
         """
         if key is None:
-            default_loader(self, self._defaults)
+            default_loader(self, self._defaults, env)
         env = (env or self.current_env).upper()
         silent = silent or self.SILENT_ERRORS_FOR_DYNACONF
         self.pre_load(env, silent=silent, key=key)

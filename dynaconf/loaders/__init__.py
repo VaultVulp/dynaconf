@@ -14,7 +14,7 @@ from dynaconf.utils.files import get_local_filename
 from dynaconf.utils.parse_conf import false_values
 
 
-def default_loader(obj, defaults=None):
+def default_loader(obj, defaults=None, env = None):
     """Loads default settings and check if there are overridings
     exported as environment variables"""
     defaults = defaults or {}
@@ -44,18 +44,20 @@ def default_loader(obj, defaults=None):
         "ENV_SWITCHER_FOR_DYNACONF", "ENV_FOR_DYNACONF"
     )
 
+
     for key in all_keys:
         if key not in default_settings_values.keys():
             continue
 
-        env_value = obj.get_environ(
-            env_switcher if key == "ENV_FOR_DYNACONF" else key,
-            default="_not_found",
-        )
+        if env is None:
+            env_value = obj.get_environ(
+                env_switcher if key == "ENV_FOR_DYNACONF" else key,
+                default="_not_found",
+            )
 
-        if env_value != "_not_found":
-            obj.logger.debug("overriding from envvar: %s:%s", key, env_value)
-            obj.set(key, env_value, tomlfy=True)
+            if env_value != "_not_found":
+                obj.logger.debug("overriding from envvar: %s:%s", key, env_value)
+                obj.set(key, env_value, tomlfy=True)
 
 
 def settings_loader(
