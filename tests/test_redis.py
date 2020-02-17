@@ -1,28 +1,27 @@
 import os
 
 import pytest
+from fakeredis import FakeServer, FakeStrictRedis
 
 from dynaconf import LazySettings
-from dynaconf.loaders.redis_loader import delete
-from dynaconf.loaders.redis_loader import load
-from dynaconf.loaders.redis_loader import write
+from dynaconf.loaders.redis_loader import delete, load, write
 
 
-def custom_checker(ip_address, port):
-    # This function should be check if the redis server is online and ready
-    # write(settings, {"SECRET": "redis_works"})
-    # return load(settings, key="SECRET")
-    return True
+@pytest.fixture(autouse=True)
+def mock_redis(mocker):
+    """
+    Replace StrictRedis, that we rely on internally, with an instance of a FakeStrictRedis.
 
+    This instance automatically cleans itself after each test.
+    """
 
-@pytest.fixture(scope="module")
-def docker_redis(docker_services):
-    docker_services.start("redis")
-    public_port = docker_services.wait_for_service(
-        "redis", 6379, check_server=custom_checker
-    )
-    url = "http://{docker_services.docker_ip}:{public_port}".format(**locals())
-    return url
+    class DynaconfFakeStrictRedis(FakeStrictRedis):
+        fake_server = FakeServer()
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs, server=self.fake_server)
+
+    mocker.patch("dynaconf.loaders.redis_loader.StrictRedis", DynaconfFakeStrictRedis)
 
 
 @pytest.mark.integration
@@ -34,7 +33,7 @@ def test_redis_not_configured():
 
 
 @pytest.mark.integration
-def test_write_redis_without_data(docker_redis):
+def test_write_redis_without_data():
     os.environ["REDIS_ENABLED_FOR_DYNACONF"] = "1"
     os.environ["REDIS_HOST_FOR_DYNACONF"] = "localhost"
     os.environ["REDIS_PORT_FOR_DYNACONF"] = "6379"
@@ -45,7 +44,7 @@ def test_write_redis_without_data(docker_redis):
 
 
 @pytest.mark.integration
-def test_write_to_redis(docker_redis):
+def test_write_to_redis():
     os.environ["REDIS_ENABLED_FOR_DYNACONF"] = "1"
     os.environ["REDIS_HOST_FOR_DYNACONF"] = "localhost"
     os.environ["REDIS_PORT_FOR_DYNACONF"] = "6379"
@@ -57,17 +56,18 @@ def test_write_to_redis(docker_redis):
 
 
 @pytest.mark.integration
-def test_load_from_redis_with_key(docker_redis):
+def test_load_from_redis_with_key():
     os.environ["REDIS_ENABLED_FOR_DYNACONF"] = "1"
     os.environ["REDIS_HOST_FOR_DYNACONF"] = "localhost"
     os.environ["REDIS_PORT_FOR_DYNACONF"] = "6379"
     settings = LazySettings()
+    write(settings, {"SECRET": "redis_works_with_docker"})
     load(settings, key="SECRET")
     assert settings.get("SECRET") == "redis_works_with_docker"
 
 
 @pytest.mark.integration
-def test_write_and_load_from_redis_without_key(docker_redis):
+def test_write_and_load_from_redis_without_key():
     os.environ["REDIS_ENABLED_FOR_DYNACONF"] = "1"
     os.environ["REDIS_HOST_FOR_DYNACONF"] = "localhost"
     os.environ["REDIS_PORT_FOR_DYNACONF"] = "6379"
@@ -78,7 +78,7 @@ def test_write_and_load_from_redis_without_key(docker_redis):
 
 
 @pytest.mark.integration
-def test_delete_from_redis(docker_redis):
+def test_delete_from_redis():
     os.environ["REDIS_ENABLED_FOR_DYNACONF"] = "1"
     os.environ["REDIS_HOST_FOR_DYNACONF"] = "localhost"
     os.environ["REDIS_PORT_FOR_DYNACONF"] = "6379"
@@ -91,7 +91,7 @@ def test_delete_from_redis(docker_redis):
 
 
 @pytest.mark.integration
-def test_delete_all_from_redis(docker_redis):
+def test_delete_all_from_redis():
     settings = LazySettings()
     delete(settings)
     assert load(settings, key="OTHER_SECRET") is None
